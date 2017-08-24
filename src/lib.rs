@@ -1,6 +1,8 @@
 extern crate libc;
 extern crate kernel32;
 
+use std::ffi::CString;
+
 use kernel32::GetLastError;
 
 #[repr(C)]
@@ -22,49 +24,73 @@ pub fn version() -> u32 {
 }
 
 #[no_mangle]
-pub fn init_c_style(index : usize, wdt : u32, hgt : u32, desired_fps: f32, device_ptr : *mut *mut Device ) -> usize {
-    let init_result = init(index, wdt, hgt, desired_fps);
-
+pub fn init(index : usize, wdt : u32, hgt : u32, desired_fps: f32, device_ptr : *mut *mut Device ) -> usize {
+    let init_result = init_rust(index, wdt, hgt, desired_fps);
     match init_result {
-        Err (e) => {
-            println!("not good");
-            let errorcode = match e {
-                Error::CouldNotOpenDevice(x) => 
-                {
-                    println!("error code is {}", x);
-                    x
-                },
-                Error::CaptureTimeout => 0
-            };
-
-            println!("{}", errorcode);
-            return 0;
-            /*
+        Err (_) => {
             unsafe {
-                // *device_ptr = std::ptr::null_mut();
+                *device_ptr = std::ptr::null_mut();
             }
-            
-            */
+            0
         },
-        Ok (device) =>
-        {
-            println!("all good");
-            
+        Ok (device) => {
             let heap_allocated_device : Box<Device> = Box::new(device);
             let ptr : *mut Device = Box::into_raw(heap_allocated_device);
 
             unsafe {
-                 // *device_ptr = ptr;
+                  *device_ptr = ptr;
             }
-            
-            //mem::forget(heap_allocated_device);
             1
         }
-
     }
 }
 
-pub fn init(index: usize, wdt: u32, hgt: u32, desired_fps: f32) -> Result<Device, Error> {
+#[no_mangle]
+pub fn free_string(ptr_to_str : *mut i8) {
+    unsafe { CString::from_raw(ptr_to_str); }
+}
+
+#[no_mangle]
+pub fn free_device(ptr_to_device : *mut Device) {
+    unsafe { 
+        let device =  Box::from_raw(ptr_to_device); 
+        deinitCapture(device.device_idx);
+    }
+}
+
+#[no_mangle]
+pub fn get_device_name(device_ptr : *const Device, str_ptr : *mut *mut i8 ) -> usize {
+    let device : &Device = unsafe { &*device_ptr };
+    let device_name : String = device.name();
+    let c_str_result = CString::new(device_name);
+    match c_str_result {
+        Err (_) => 0,
+        Ok (c_str) => {
+            let length = c_str.as_bytes().len();
+            let ptr_c_string = c_str.into_raw();
+            unsafe { *str_ptr = ptr_c_string; }
+            length
+        }
+    }
+}
+
+#[no_mangle]
+pub fn get_capture_buffer(device_ptr : *const Device, buffer : *mut *mut [i32], buffer_length : *mut usize ) -> usize {
+    let device : &Device = unsafe { &*device_ptr };
+    let capture_result = device.capture();
+    match capture_result {
+        Err (_) => 0,
+        Ok (_) => {
+            let length = device.buf.len();
+            let raw_ptr = device.buf.clone();
+            unsafe { *buffer = Box::into_raw(raw_ptr); }
+            unsafe { *buffer_length = length; }
+            1
+        }
+    }
+}
+
+pub fn init_rust(index: usize, wdt: u32, hgt: u32, desired_fps: f32) -> Result<Device, Error> {
     let mut data = vec![0; (wdt*hgt) as usize].into_boxed_slice();
     let mut params = Box::new(SimpleCapParams {
         width: wdt,
@@ -96,10 +122,11 @@ pub struct Device {
 }
 
 impl Device {
+
     pub fn capture(&self) -> Result<&[u8], Error> {
         unsafe { doCapture(self.device_idx) };
 
-        const MAX_TRY_ATTEMPTS: usize = 10;
+        const MAX_TRY_ATTEMPTS: usize = 1000;
         for _ in 0..MAX_TRY_ATTEMPTS {
             if unsafe { isCaptureDone(self.device_idx) } == 1 {
                 let data = &self.buf;
@@ -111,6 +138,7 @@ impl Device {
 
         Err(Error::CaptureTimeout)
     }
+
     pub fn name(&self) -> String {
         let mut v = vec![0u8; 100];
         unsafe { getCaptureDeviceName(self.device_idx, v.as_mut_ptr() as *mut i8, v.len() as i32) };
@@ -118,17 +146,13 @@ impl Device {
         v.truncate(null);
         String::from_utf8(v).expect("device name contains invalid utf8 characters")
     }
+
     pub fn capture_width(&self) -> u32 {
         self.params.width
     }
+
     pub fn capture_height(&self) -> u32 {
         self.params.height
-    }
-}
-
-impl Drop for Device {
-    fn drop(&mut self) {
-        unsafe { deinitCapture(self.device_idx) }
     }
 }
 
