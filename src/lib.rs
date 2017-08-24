@@ -8,22 +8,69 @@ struct SimpleCapParams {
     buf: *mut libc::c_int,
     width: libc::c_uint,
     height: libc::c_uint,
+    framerate: libc::c_float
 }
 
+#[no_mangle]
 pub fn num_devices() -> usize {
     unsafe { countCaptureDevices() as usize }
 }
 
+#[no_mangle]
 pub fn version() -> u32 {
     unsafe { ESCAPIVersion() }
 }
 
-pub fn init(index: usize, wdt: u32, hgt: u32, desired_fps: u64) -> Result<Device, Error> {
+#[no_mangle]
+pub fn init_c_style(index : usize, wdt : u32, hgt : u32, desired_fps: f32, device_ptr : *mut *mut Device ) -> usize {
+    let init_result = init(index, wdt, hgt, desired_fps);
+
+    match init_result {
+        Err (e) => {
+            println!("not good");
+            let errorcode = match e {
+                Error::CouldNotOpenDevice(x) => 
+                {
+                    println!("error code is {}", x);
+                    x
+                },
+                Error::CaptureTimeout => 0
+            };
+
+            println!("{}", errorcode);
+            return 0;
+            /*
+            unsafe {
+                // *device_ptr = std::ptr::null_mut();
+            }
+            
+            */
+        },
+        Ok (device) =>
+        {
+            println!("all good");
+            
+            let heap_allocated_device : Box<Device> = Box::new(device);
+            let ptr : *mut Device = Box::into_raw(heap_allocated_device);
+
+            unsafe {
+                 // *device_ptr = ptr;
+            }
+            
+            //mem::forget(heap_allocated_device);
+            1
+        }
+
+    }
+}
+
+pub fn init(index: usize, wdt: u32, hgt: u32, desired_fps: f32) -> Result<Device, Error> {
     let mut data = vec![0; (wdt*hgt) as usize].into_boxed_slice();
     let mut params = Box::new(SimpleCapParams {
         width: wdt,
         height: hgt,
         buf: data.as_mut_ptr(),
+        framerate : desired_fps
     });
 
     let index = index as libc::c_uint;
@@ -33,7 +80,7 @@ pub fn init(index: usize, wdt: u32, hgt: u32, desired_fps: u64) -> Result<Device
             device_idx: index,
             buf: data,
             params: params,
-            desired_fps: desired_fps,
+            desired_fps: desired_fps as u64,
         })
     } else {
         Err(Error::CouldNotOpenDevice(unsafe { GetLastError() }))
@@ -59,7 +106,7 @@ impl Device {
                 return Ok(unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8,
                                                               data.len() * 4) });
             }
-            std::thread::sleep(std::time::Duration::from_millis(1000 / self.desired_fps));
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
 
         Err(Error::CaptureTimeout)

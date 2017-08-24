@@ -10,6 +10,8 @@ struct SimpleCapParams
 	int mWidth;
 	/* Buffer height */
 	int mHeight;
+	
+	float mFramerate;
 };
 
 enum CAPTURE_PROPETIES

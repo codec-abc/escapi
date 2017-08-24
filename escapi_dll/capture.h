@@ -27,7 +27,7 @@ public:
 	HRESULT setConversionFunction(REFGUID aSubtype);
 	HRESULT setVideoType(IMFMediaType *aType);
 	int isMediaOk(IMFMediaType *aType, int aIndex);
-	int scanMediaTypes(unsigned int aWidth, unsigned int aHeight);
+	int scanMediaTypes(unsigned int aWidth, unsigned int aHeight, float framerate);
 	HRESULT initCapture(int aDevice);
 	void deinitCapture();
 

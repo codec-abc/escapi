@@ -519,7 +519,7 @@ int CaptureClass::isMediaOk(IMFMediaType *aType, int aIndex)
 	return found;
 }
 
-int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight)
+int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight, float desired_framerate)
 {
 	HRESULT hr;
 	HRESULT nativeTypeErrorCode = S_OK;
@@ -551,6 +551,15 @@ int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight)
 
 			if (FAILED(hr)) return bestfit;
 
+			
+			UINT32 num;
+			UINT32 denum;
+			hr = MFGetAttributeRatio(nativeType, MF_MT_FRAME_RATE, &num, &denum);
+
+			float framerate = ((float) num) / denum;
+			
+			if (FAILED(hr)) return bestfit;
+
 			int error = 0;
 
 			// prefer (hugely) to get too much than too little data..
@@ -563,7 +572,7 @@ int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight)
 			if (aWidth == width && aHeight == height) // ..but perfect match is a perfect match
 				error = 0;
 
-			if (besterror > error)
+			if (besterror > error && framerate >= desired_framerate)
 			{
 				besterror = error;
 				bestfit = count;
@@ -648,7 +657,7 @@ HRESULT CaptureClass::initCapture(int aDevice)
 
 		DO_OR_DIE_CRITSECTION;
 
-		int preferredmode = scanMediaTypes(gParams[mWhoAmI].mWidth, gParams[mWhoAmI].mHeight);
+		int preferredmode = scanMediaTypes(gParams[mWhoAmI].mWidth, gParams[mWhoAmI].mHeight, gParams[mWhoAmI].mFramerate);
 		mUsedIndex = preferredmode;
 
 		hr = mReader->GetNativeMediaType(

@@ -20,3 +20,7 @@ image = "0.13"
 
 [build-dependencies]
 gcc = "0.3"
+
+[lib]
+name = "escapi_rust"
+crate-type = ["cdylib"]
