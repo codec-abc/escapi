@@ -1,18 +1,18 @@
 #include <mfapi.h>
 #include "conversion.h"
-
+#include <iostream>
 
 ConversionFunction gFormatConversions[] =
 {
 	{ MFVideoFormat_RGB32, TransformImage_RGB32 },
 	{ MFVideoFormat_RGB24, TransformImage_RGB24 },
 	{ MFVideoFormat_YUY2, TransformImage_YUY2 },
-	{ MFVideoFormat_NV12, TransformImage_NV12 }
+	{ MFVideoFormat_NV12, TransformImage_NV12 },
+	{ MFVideoFormat_MJPG, TransformImage_MJPG }
+	
 };
 
-const DWORD gConversionFormats = 4;
-
-
+const DWORD gConversionFormats = 6;
 
 void TransformImage_RGB24(
 	BYTE*       aDest,
@@ -20,7 +20,8 @@ void TransformImage_RGB24(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	)
 {
 	for (DWORD y = 0; y < aHeightInPixels; y++)
@@ -50,7 +51,8 @@ void TransformImage_RGB32(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	)
 {
 	MFCopyImage(aDest, aDestStride, aSrc, aSrcStride, aWidthInPixels * 4, aHeightInPixels);
@@ -88,7 +90,8 @@ void TransformImage_YUY2(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	)
 {
 	for (DWORD y = 0; y < aHeightInPixels; y++)
@@ -115,16 +118,15 @@ void TransformImage_YUY2(
 
 }
 
-
-
 void TransformImage_NV12(
 	BYTE* aDst,
 	LONG aDstStride,
 	const BYTE* aSrc,
 	LONG aSrcStride,
 	DWORD aWidthInPixels,
-	DWORD aHeightInPixels
-	)
+	DWORD aHeightInPixels,
+	DWORD bufferLength
+)
 {
 	const BYTE* bitsY = aSrc;
 	const BYTE* bitsCb = bitsY + (aHeightInPixels * aSrcStride);
@@ -186,5 +188,21 @@ void TransformImage_NV12(
 		bitsY += (2 * aSrcStride);
 		bitsCr += aSrcStride;
 		bitsCb += aSrcStride;
+	}
+}
+
+void TransformImage_MJPG(
+	BYTE*       aDest,
+	LONG        aDestStride,
+	const BYTE* aSrc,
+	LONG        aSrcStride,
+	DWORD       aWidthInPixels,
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
+)
+{
+	for (UINT w = 0; w < bufferLength; w++)
+	{
+		aDest[w] = aSrc[w];
 	}
 }

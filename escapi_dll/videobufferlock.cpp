@@ -1,5 +1,6 @@
 #include <mfapi.h>
 #include "videobufferlock.h"
+#include <iostream>
 
 VideoBufferLock::VideoBufferLock(IMFMediaBuffer *aBuffer) : m2DBuffer(NULL), mLocked(FALSE)
 {
@@ -23,7 +24,8 @@ HRESULT VideoBufferLock::LockBuffer(
 	LONG  aDefaultStride,    // Minimum stride (with no padding).
 	DWORD aHeightInPixels,  // Height of the image, in pixels.
 	BYTE  **aScanLine0,    // Receives a pointer to the start of scan line 0.
-	LONG  *aStride          // Receives the actual stride.
+	LONG  *aStride,          // Receives the actual stride.
+	DWORD *bufferLength
 	)
 {
 	HRESULT hr = S_OK;
@@ -38,7 +40,7 @@ HRESULT VideoBufferLock::LockBuffer(
 		// Use non-2D version.
 		BYTE *data = NULL;
 
-		hr = mBuffer->Lock(&data, NULL, NULL);
+		hr = mBuffer->Lock(&data, NULL, bufferLength);
 		if (SUCCEEDED(hr))
 		{
 			*aStride = aDefaultStride;

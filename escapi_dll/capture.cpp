@@ -7,6 +7,8 @@
 #include <objbase.h> // IID_PPV_ARGS and friends
 #include <dshow.h> // IAMVideoProcAmp and friends
 
+#include <iostream>
+
 #include <math.h>
 
 #define ESCAPI_DEFINITIONS_ONLY
@@ -128,19 +130,23 @@ STDMETHODIMP CaptureClass::OnReadSample(
 
 					BYTE *scanline0 = NULL;
 					LONG stride = 0;
-					hr = buffer.LockBuffer(mDefaultStride, mCaptureBufferHeight, &scanline0, &stride);
+
+					DWORD bufferLength;
+					hr = buffer.LockBuffer(mDefaultStride, mCaptureBufferHeight, &scanline0, &stride, &bufferLength);
 
 					DO_OR_DIE_CRITSECTION;
 
 					mConvertFn(
-						(BYTE *)mCaptureBuffer,
+						(BYTE*) gParams[mWhoAmI].mTargetBuf, //(BYTE *)mCaptureBuffer,
 						mCaptureBufferWidth * 4,
 						scanline0,
 						stride,
 						mCaptureBufferWidth,
-						mCaptureBufferHeight
+						mCaptureBufferHeight,
+						bufferLength
 						);
 				}
+				/*
 				else
 				{
 					// No convert function?
@@ -151,7 +157,8 @@ STDMETHODIMP CaptureClass::OnReadSample(
 						VideoBufferLock buffer(mediabuffer);    // Helper object to lock the video buffer.
 						BYTE *scanline0 = NULL;
 						LONG stride = 0;
-						hr = buffer.LockBuffer(mDefaultStride, mCaptureBufferHeight, &scanline0, &stride);
+						DWORD bufferLength;
+						hr = buffer.LockBuffer(mDefaultStride, mCaptureBufferHeight, &scanline0, &stride, &bufferLength);
 						if (stride < 0)
 						{
 							scanline0 += stride * mCaptureBufferHeight;
@@ -161,7 +168,9 @@ STDMETHODIMP CaptureClass::OnReadSample(
 						CopyMemory(mCaptureBuffer, scanline0, bytes);
 					}
 				}
+				*/
 
+				/*
 				int i, j;
 				int *dst = (int*)gParams[mWhoAmI].mTargetBuf;
 				int *src = (int*)mCaptureBuffer;
@@ -174,6 +183,7 @@ STDMETHODIMP CaptureClass::OnReadSample(
 								(j * mCaptureBufferWidth / gParams[mWhoAmI].mWidth)];
 					}
 				}
+				*/
 				gDoCapture[mWhoAmI] = 1;
 			}
 		}
@@ -376,13 +386,14 @@ int CaptureClass::getProperty(int aProperty, float &aValue, int &aAuto)
 	return 1;
 }
 
-BOOL CaptureClass::isFormatSupported(REFGUID aSubtype) const
+BOOL CaptureClass::isFormatSupported(REFGUID aSubtype)
 {
 	int i;
 	for (i = 0; i < (signed)gConversionFormats; i++)
 	{
 		if (aSubtype == gFormatConversions[i].mSubtype)
 		{
+			this->mFormatIndex = i + 1;
 			return TRUE;
 		}
 	}
@@ -490,7 +501,7 @@ int CaptureClass::isMediaOk(IMFMediaType *aType, int aIndex)
 	{
 		// Can we decode this media type to one of our supported
 		// output formats?
-
+		/*
 		for (i = 0;; i++)
 		{
 			// Get the i'th format.
@@ -515,6 +526,7 @@ int CaptureClass::isMediaOk(IMFMediaType *aType, int aIndex)
 				break;
 			}
 		}
+		*/
 	}
 	return found;
 }
@@ -544,6 +556,7 @@ int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight, floa
 
 		if (FAILED(hr)) return bestfit;
 
+		auto previousFormat = this->mFormatIndex;
 		if (isMediaOk(nativeType, count))
 		{
 			UINT32 width, height;
@@ -572,20 +585,41 @@ int CaptureClass::scanMediaTypes(unsigned int aWidth, unsigned int aHeight, floa
 			if (aWidth == width && aHeight == height) // ..but perfect match is a perfect match
 				error = 0;
 
+
+			if (error == 0)
+			{
+				std::cout << "got perfect resolution at " << width << "x" << height << " count is " << count << std::endl;
+			}
+			//std::cout << "framerate is " << framerate << std::endl;
+			//std::cout << "resolution is " << width << "x" << height << std::endl;
+
 			if (besterror > error && framerate >= desired_framerate)
 			{
 				besterror = error;
 				bestfit = count;
+				//std::cout << "picking this format" << std::endl;
 			}
+			else
+			{
+				this->mFormatIndex = previousFormat;
+			}
+			
+
+			//std::cout << std::endl;
 			/*
 			char temp[1024];
 			sprintf(temp, "%d x %d, %x:%x:%x:%x %d %d\n", width, height, nativeGuid.Data1, nativeGuid.Data2, nativeGuid.Data3, nativeGuid.Data4, bestfit == count, besterror);
 			OutputDebugStringA(temp);
 			*/
 		}
+		else
+		{
+			this->mFormatIndex = previousFormat;
+		}
 
 		count++;
 	}
+	std::cout << "bestfit is " << bestfit << std::endl;
 	return bestfit;
 }
 
@@ -668,7 +702,6 @@ HRESULT CaptureClass::initCapture(int aDevice)
 		ScopedRelease<IMFMediaType> type_s(type);
 
 		DO_OR_DIE_CRITSECTION;
-
 		hr = setVideoType(type);
 
 		DO_OR_DIE_CRITSECTION;

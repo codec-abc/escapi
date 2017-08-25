@@ -14,6 +14,8 @@ license-file = "UNLICENSE"
 [dependencies]
 kernel32-sys = "0.2.2"
 libc = "0.2.10"
+time = "0.1.38"
+jpeg-decoder = "0.1"
 
 [dev-dependencies]
 image = "0.13"

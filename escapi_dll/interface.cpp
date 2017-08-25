@@ -17,7 +17,6 @@ CaptureClass *gDevice[MAXDEVICES] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 int gDoCapture[MAXDEVICES];
 int gOptions[MAXDEVICES];
 
-
 void CleanupDevice(int aDevice)
 {
 	if (gDevice[aDevice])
@@ -27,7 +26,8 @@ void CleanupDevice(int aDevice)
 		gDevice[aDevice] = 0;
 	}
 }
-HRESULT InitDevice(int aDevice)
+
+HRESULT InitDevice(int aDevice, unsigned int* captureFormat)
 {
 	if (gDevice[aDevice])
 	{
@@ -40,10 +40,9 @@ HRESULT InitDevice(int aDevice)
 		delete gDevice[aDevice];
 		gDevice[aDevice] = 0;
 	}
+	*captureFormat = gDevice[aDevice]->mFormatIndex;
 	return hr;
 }
-
-
 
 int CountCaptureDevices()
 {
@@ -153,7 +152,6 @@ void CheckForFail(int aDevice)
 	}
 }
 
-
 int GetErrorCode(int aDevice)
 {
 	if (!gDevice[aDevice])
@@ -167,7 +165,6 @@ int GetErrorLine(int aDevice)
 		return 0;
 	return gDevice[aDevice]->mErrorLine;
 }
-
 
 float GetProperty(int aDevice, int aProp)
 {

@@ -9,7 +9,7 @@ extern struct SimpleCapParams gParams[];
 extern int gDoCapture[];
 extern int gOptions[];
 
-extern HRESULT InitDevice(int device);
+extern HRESULT InitDevice(int device, unsigned int* captureFormat);
 extern void CleanupDevice(int device);
 extern int CountCaptureDevices();
 extern void GetCaptureDeviceName(int deviceno, char * namebuffer, int bufferlength);
@@ -58,7 +58,7 @@ extern "C" void __declspec(dllexport) initCOM()
 	CoInitialize(NULL);
 }
 
-extern "C" int __declspec(dllexport) initCapture(unsigned int deviceno, struct SimpleCapParams *aParams)
+extern "C" int __declspec(dllexport) initCapture(unsigned int deviceno, struct SimpleCapParams *aParams, unsigned int* captureFormat)
 {
 	if (deviceno > MAXDEVICES)
 		return 0;
@@ -67,7 +67,10 @@ extern "C" int __declspec(dllexport) initCapture(unsigned int deviceno, struct S
 	gDoCapture[deviceno] = 0;
 	gParams[deviceno] = *aParams;
 	gOptions[deviceno] = 0;
-	if (FAILED(InitDevice(deviceno))) return 0;
+	if (FAILED(InitDevice(deviceno, captureFormat)))
+	{
+		return 0;
+	}
 	return 1;
 }
 
@@ -131,7 +134,7 @@ extern "C" int __declspec(dllexport) setCaptureProperty(unsigned int deviceno, i
 	return SetProperty(deviceno, prop, value, autoval);
 }
 
-extern "C" int __declspec(dllexport) initCaptureWithOptions(unsigned int deviceno, struct SimpleCapParams *aParams, unsigned int aOptions)
+extern "C" int __declspec(dllexport) initCaptureWithOptions(unsigned int deviceno, struct SimpleCapParams *aParams, unsigned int aOptions, unsigned int* captureFormat)
 {
 	if (deviceno > MAXDEVICES)
 		return 0;
@@ -142,7 +145,7 @@ extern "C" int __declspec(dllexport) initCaptureWithOptions(unsigned int devicen
 	gDoCapture[deviceno] = 0;
 	gParams[deviceno] = *aParams;
 	gOptions[deviceno] = aOptions;
-	if (FAILED(InitDevice(deviceno))) return 0;
+	if (FAILED(InitDevice(deviceno, captureFormat))) return 0;
 	return 1;
 }
 

@@ -22,7 +22,7 @@ public:
 	int escapiPropToMFProp(int aProperty);
 	int setProperty(int aProperty, float aValue, int aAuto);
 	int getProperty(int aProperty, float &aValue, int &aAuto);
-	BOOL isFormatSupported(REFGUID aSubtype) const;
+	BOOL isFormatSupported(REFGUID aSubtype);
 	HRESULT getFormat(DWORD aIndex, GUID *aSubtype) const;
 	HRESULT setConversionFunction(REFGUID aSubtype);
 	HRESULT setVideoType(IMFMediaType *aType);
@@ -49,5 +49,6 @@ public:
 	unsigned int			mBadIndices;
 	unsigned int			mMaxBadIndices;
 	unsigned int			mUsedIndex;
+	unsigned int			mFormatIndex;
 	int						mRedoFromStart;
 };

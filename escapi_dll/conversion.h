@@ -6,7 +6,8 @@ typedef void(*IMAGE_TRANSFORM_FN)(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	);
 
 struct ConversionFunction
@@ -21,7 +22,8 @@ void TransformImage_RGB24(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	);
 
 void TransformImage_RGB32(
@@ -30,7 +32,8 @@ void TransformImage_RGB32(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	);
 
 void TransformImage_YUY2(
@@ -39,7 +42,8 @@ void TransformImage_YUY2(
 	const BYTE* aSrc,
 	LONG        aSrcStride,
 	DWORD       aWidthInPixels,
-	DWORD       aHeightInPixels
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
 	);
 
 void TransformImage_NV12(
@@ -48,7 +52,30 @@ void TransformImage_NV12(
 	const BYTE* aSrc,
 	LONG		aSrcStride,
 	DWORD		aWidthInPixels,
-	DWORD		aHeightInPixels
+	DWORD		aHeightInPixels,
+	DWORD		bufferLength
 	);
+
+void TransformImage_MJPG(
+	BYTE*       aDest,
+	LONG        aDestStride,
+	const BYTE* aSrc,
+	LONG        aSrcStride,
+	DWORD       aWidthInPixels,
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
+);
+
+void DummyTransform(
+	BYTE*       aDest,
+	LONG        aDestStride,
+	const BYTE* aSrc,
+	LONG        aSrcStride,
+	DWORD       aWidthInPixels,
+	DWORD       aHeightInPixels,
+	DWORD		bufferLength
+);
+
+
 extern ConversionFunction gFormatConversions[];
 extern const DWORD gConversionFormats;
