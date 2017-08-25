@@ -1,9 +1,15 @@
 extern crate libc;
 extern crate kernel32;
+extern crate time;
+extern crate jpeg_decoder as jpeg;
 
 use std::ffi::CString;
-
+use std::mem;
+use std::slice;
 use kernel32::GetLastError;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
 
 #[repr(C)]
 struct SimpleCapParams {
@@ -24,8 +30,31 @@ pub fn version() -> u32 {
 }
 
 #[no_mangle]
-pub fn init(index : usize, wdt : u32, hgt : u32, desired_fps: f32, device_ptr : *mut *mut Device ) -> usize {
-    let init_result = init_rust(index, wdt, hgt, desired_fps);
+pub fn post_convert(out_buffer : *mut libc::c_void, in_buffer : *const libc::c_void, width : u32, height : u32, format : u32) {
+    match format {
+        5 => {
+            //let decoder = jpeg::Decoder::new();
+        }
+        _ => {
+            println!("doing memcopy");
+            unsafe { libc::memcpy(out_buffer, in_buffer, (width * height * 4) as usize);}
+        }
+    }
+}
+
+#[no_mangle]
+pub fn init
+    (
+        index : usize, 
+        wdt : u32, 
+        hgt : u32, 
+        desired_fps: f32,
+        device_buffer : *mut i32,
+        device_ptr : *mut *mut Device,
+        format_index : *mut u32
+    ) -> usize 
+{
+    let init_result = init_rust(index, wdt, hgt, desired_fps, device_buffer, format_index);
     match init_result {
         Err (_) => {
             unsafe {
@@ -58,6 +87,25 @@ pub fn free_device(ptr_to_device : *mut Device) {
     }
 }
 
+
+#[no_mangle]
+pub fn allocate_buffer_i32(width : u32, height : u32, buffer_ptr : *mut *mut i32) {
+    let mut data  : Vec<i32> = vec![0; (width * height) as usize];
+    let ptr = data.as_mut_ptr();
+    let len = data.len();
+    unsafe { *buffer_ptr = ptr; }
+    mem::forget(data);
+}
+
+#[no_mangle]
+pub fn allocate_buffer_u8(size : u32, buffer_ptr : *mut *mut u8) {
+    let mut data  : Vec<u8> = vec![0; size as usize];
+    let ptr = data.as_mut_ptr();
+    let len = data.len();
+    unsafe { *buffer_ptr = ptr; }
+    mem::forget(data);
+}
+
 #[no_mangle]
 pub fn get_device_name(device_ptr : *const Device, str_ptr : *mut *mut i8 ) -> usize {
     let device : &Device = unsafe { &*device_ptr };
@@ -75,36 +123,64 @@ pub fn get_device_name(device_ptr : *const Device, str_ptr : *mut *mut i8 ) -> u
 }
 
 #[no_mangle]
-pub fn get_capture_buffer(device_ptr : *const Device, buffer : *mut *mut [i32], buffer_length : *mut usize ) -> usize {
+pub fn get_capture_buffer(device_ptr : *const Device) -> usize {
+    let before = time::now();
     let device : &Device = unsafe { &*device_ptr };
+
     let capture_result = device.capture();
     match capture_result {
         Err (_) => 0,
         Ok (_) => {
-            let length = device.buf.len();
-            let raw_ptr = device.buf.clone();
-            unsafe { *buffer = Box::into_raw(raw_ptr); }
-            unsafe { *buffer_length = length; }
+            let after = time::now();
+            let diff = after - before;
+            //println!("device.capture() took {} ms", diff.num_milliseconds());
             1
         }
     }
 }
 
-pub fn init_rust(index: usize, wdt: u32, hgt: u32, desired_fps: f32) -> Result<Device, Error> {
-    let mut data = vec![0; (wdt*hgt) as usize].into_boxed_slice();
+#[no_mangle]
+pub fn try_decode_file() {
+
+    let mut file = File::open("C:\\Users\\sesa455926\\Documents\\visual studio 2017\\Projects\\ConsoleApp3\\ConsoleApp3\\bin\\x64\\Debug\\data\\image3.jpg");
+    match file {
+        Err (_) => println!("cannot read file"),
+        Ok (a) => {
+            println!("can read file");
+            
+            let mut decoder = jpeg::Decoder::new(BufReader::new(a));
+            let before = time::now();
+
+            let pixels = decoder.decode();//.expect("failed to decode image");
+            match pixels {
+                Ok(_) => {
+                    println!("can decode image");
+                    let after = time::now();
+                    let diff = after - before;
+                    println!("DECODING JPG took {} ms", diff.num_milliseconds());
+                },
+                Err (a) => println!("Error is {}", a)
+            }
+            //let metadata = decoder.info().unwrap();
+            ()
+        }
+    }
+
+}
+
+pub fn init_rust(index: usize, wdt: u32, hgt: u32, desired_fps: f32, buffer : *mut i32, format_index : *mut u32) -> Result<Device, Error> {
     let mut params = Box::new(SimpleCapParams {
         width: wdt,
         height: hgt,
-        buf: data.as_mut_ptr(),
+        buf: buffer,
         framerate : desired_fps
     });
 
     let index = index as libc::c_uint;
-    if unsafe { initCapture(index, &mut *params) } == 1 {
+    if unsafe { initCapture(index, &mut *params, format_index) } == 1 {
         assert!(unsafe { getCaptureErrorCode(index) } == 0);
         Ok(Device {
             device_idx: index,
-            buf: data,
             params: params,
             desired_fps: desired_fps as u64,
         })
@@ -116,22 +192,20 @@ pub fn init_rust(index: usize, wdt: u32, hgt: u32, desired_fps: f32) -> Result<D
 /// The device requests BGRA format, so the frames are in BGRA.
 pub struct Device {
     device_idx: libc::c_uint,
-    buf: Box<[i32]>,
     params: Box<SimpleCapParams>,
     desired_fps: u64,
 }
 
 impl Device {
 
-    pub fn capture(&self) -> Result<&[u8], Error> {
+    pub fn capture(&self) -> Result<(), Error> {
         unsafe { doCapture(self.device_idx) };
 
         const MAX_TRY_ATTEMPTS: usize = 1000;
-        for _ in 0..MAX_TRY_ATTEMPTS {
+        for nb_attemp in 0..MAX_TRY_ATTEMPTS {
             if unsafe { isCaptureDone(self.device_idx) } == 1 {
-                let data = &self.buf;
-                return Ok(unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8,
-                                                              data.len() * 4) });
+                //println!("nb_attemp is {}", nb_attemp);
+                return Ok(());
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
@@ -182,7 +256,7 @@ impl std::error::Error for Error {
 
 extern "C" {
     fn countCaptureDevices() -> libc::c_int;
-    fn initCapture(_: libc::c_uint, _: *mut SimpleCapParams) -> libc::c_int;
+    fn initCapture(_: libc::c_uint, _: *mut SimpleCapParams, format_index : *mut u32) -> libc::c_int;
     fn deinitCapture(_: libc::c_uint);
     fn doCapture(_: libc::c_uint) -> libc::c_int;
     fn isCaptureDone(_: libc::c_uint) -> libc::c_int;
